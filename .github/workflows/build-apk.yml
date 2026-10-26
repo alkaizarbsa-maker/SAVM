@@ -1,0 +1,66 @@
+name: Build Affiliate APK
+
+# ZIP-IN-REPO FLOW:
+#   1. Upload any Affiliate bundle zip to the repository ROOT, exactly as
+#      downloaded (e.g. shopee-affiliate-android-1.0.0-xxxxx.zip â€” any name).
+#   2. Put THIS file at .github/workflows/build-apk.yml in the repo.
+#   3. Actions tab -> Build Affiliate APK -> runs on every push, or Run workflow.
+#   4. Download the `affiliate-apk` artifact, install on the phone.
+#
+# The Unpack step picks the NEWEST *.zip in the repo root, so versioned
+# bundles build with no renaming. Old zips can stay; only the newest is used.
+#
+# PUSH-SAFE: a repo holding the extracted bundle (with this file sitting
+# beside build-apk.yml under .github/workflows/) has no zip in its root, so
+# this workflow notices that and passes quietly instead of failing.
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Unpack project
+        id: unpack
+        run: |
+          ZIP="$(ls -t *.zip 2>/dev/null | head -n 1)"
+          if [ -z "$ZIP" ]; then
+            echo "No .zip in repo root â€” nothing to build (extracted layout; extracted build handles it)."
+            echo "has_zip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Unpacking $ZIP"
+          rm -rf project
+          unzip -o "$ZIP" -d project
+          echo "has_zip=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java 17
+        if: steps.unpack.outputs.has_zip == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        if: steps.unpack.outputs.has_zip == 'true'
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        if: steps.unpack.outputs.has_zip == 'true'
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build release APK
+        if: steps.unpack.outputs.has_zip == 'true'
+        run: gradle -p project :app:assembleRelease --stacktrace
+
+      - name: Upload APK
+        if: steps.unpack.outputs.has_zip == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: affiliate-apk
+          path: project/app/build/outputs/apk/release/app-release.apk
