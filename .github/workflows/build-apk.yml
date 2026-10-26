@@ -46,9 +46,10 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Set up Android SDK
-        if: steps.unpack.outputs.has_zip == 'true'
-        uses: android-actions/setup-android@v3
+      # No SDK setup step: like LitReader, we use the Android SDK that
+      # GitHub's ubuntu runners already preinstall (ANDROID_HOME).
+      # (android-actions/setup-android re-downloads cmdline-tools and
+      # fails on version drift â€” that was the "Set up Android SDK" error.)
 
       - name: Set up Gradle
         if: steps.unpack.outputs.has_zip == 'true'
